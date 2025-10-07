@@ -3,64 +3,96 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Apple Pay Test</title>
+  <title>Apple Pay Test with Full Logging</title>
 </head>
 <body>
   <h2>Apple Pay Demo Page</h2>
-  <p>This page will check if Apple Pay is supported and let you try a simple test payment.</p>
+  <p>This page will check if Apple Pay is supported and log everything returned by its functions.</p>
 
   <button id="applePayButton">Pay with Apple Pay</button>
 
+  <pre id="log" style="background:#eee; padding:10px; max-height:300px; overflow:auto;"></pre>
+
   <script>
-    // Check if Apple Pay is available in the browser
-    if (window.ApplePaySession) {
-      console.log("✅ Apple Pay is supported in this browser!");
-    } else {
-      console.log("❌ Apple Pay is NOT supported in this browser.");
+    const logEl = document.getElementById('log');
+    function log(...args) {
+      console.log(...args);
+      logEl.textContent += args.map(a => (typeof a === 'object' ? JSON.stringify(a, null, 2) : a)).join(' ') + '\n';
     }
 
-    // Handle the click event on the button
+    // Mock ApplePaySession if not available
+    if (!window.ApplePaySession) {
+      log("❌ Apple Pay not available. Using mock session for testing.");
+      window.ApplePaySession = class {
+        static canMakePayments() { log("Mock: canMakePayments() -> true"); return true; }
+        constructor(version, request) {
+          this.version = version;
+          this.request = request;
+          this.onvalidatemerchant = null;
+          this.onpaymentauthorized = null;
+          this.oncancel = null;
+          log("Mock session created with version:", version, "request:", request);
+        }
+        begin() {
+          log("Mock: session.begin() called");
+          // Trigger merchant validation
+          if (typeof this.onvalidatemerchant === 'function') {
+            const event = { validationURL: "mock://validation.url" };
+            log("Mock: firing onvalidatemerchant with event:", event);
+            this.onvalidatemerchant(event);
+          }
+          // Trigger payment authorized
+          if (typeof this.onpaymentauthorized === 'function') {
+            const event = { payment: { token: "mock-token", billingContact: {}, shippingContact: {} } };
+            log("Mock: firing onpaymentauthorized with event:", event);
+            this.onpaymentauthorized(event);
+          }
+          // Trigger cancel (optional)
+          if (typeof this.oncancel === 'function') {
+            log("Mock: firing oncancel");
+            // Uncomment below to test cancel
+            // this.oncancel();
+          }
+        }
+        completeMerchantValidation(session) { log("Mock: completeMerchantValidation called with:", session); }
+        completePayment(status) { log("Mock: completePayment called with:", status); }
+      };
+    } else {
+      log("✅ Apple Pay is supported in this browser.");
+    }
+
     document.getElementById("applePayButton").addEventListener("click", beginApplePay);
 
     function beginApplePay() {
-      // Basic payment details
       const paymentRequest = {
         countryCode: "US",
         currencyCode: "USD",
-        total: {
-          label: "Demo Shop",
-          amount: "1.00"
-        },
+        total: { label: "Demo Shop", amount: "1.00" },
         supportedNetworks: ["visa", "masterCard", "amex"],
         merchantCapabilities: ["supports3DS"]
       };
 
-      // Create a new Apple Pay session
       const session = new ApplePaySession(3, paymentRequest);
-      console.log("ApplePaySession created:", session);
+      log("ApplePaySession created:", session);
 
-      // When Apple needs to validate the merchant
       session.onvalidatemerchant = (event) => {
-        console.log("Merchant validation required:", event.validationURL);
-        // For demo, we'll just complete validation immediately
-        session.completeMerchantValidation({});
+        log("onvalidatemerchant triggered with event:", event);
+        session.completeMerchantValidation({ mock: "merchant-session" });
       };
 
-      // When the user authorizes payment
       session.onpaymentauthorized = (event) => {
-        console.log("Payment authorized:", event.payment);
-        session.completePayment(ApplePaySession.STATUS_SUCCESS);
-        console.log("✅ Payment completed successfully (test)");
+        log("onpaymentauthorized triggered with event:", event);
+        const status = ApplePaySession.STATUS_SUCCESS || "STATUS_SUCCESS";
+        session.completePayment(status);
+        log("Payment completed with status:", status);
       };
 
-      // If the user cancels
       session.oncancel = () => {
-        console.log("❌ Apple Pay was cancelled by the user");
+        log("oncancel triggered");
       };
 
-      // Start the Apple Pay flow
       session.begin();
-      console.log("Apple Pay session started");
+      log("Apple Pay session started");
     }
   </script>
 </body>
