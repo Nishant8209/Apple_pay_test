@@ -23,40 +23,7 @@
     // Mock ApplePaySession if not available
     if (!window.ApplePaySession) {
       log("❌ Apple Pay not available. Using mock session for testing.");
-      window.ApplePaySession = class {
-        static canMakePayments() { log("Mock: canMakePayments() -> true"); return true; }
-        constructor(version, request) {
-          this.version = version;
-          this.request = request;
-          this.onvalidatemerchant = null;
-          this.onpaymentauthorized = null;
-          this.oncancel = null;
-          log("Mock session created with version:", version, "request:", request);
-        }
-        begin() {
-          log("Mock: session.begin() called");
-          // Trigger merchant validation
-          if (typeof this.onvalidatemerchant === 'function') {
-            const event = { validationURL: "mock://validation.url" };
-            log("Mock: firing onvalidatemerchant with event:", event);
-            this.onvalidatemerchant(event);
-          }
-          // Trigger payment authorized
-          if (typeof this.onpaymentauthorized === 'function') {
-            const event = { payment: { token: "mock-token", billingContact: {}, shippingContact: {} } };
-            log("Mock: firing onpaymentauthorized with event:", event);
-            this.onpaymentauthorized(event);
-          }
-          // Trigger cancel (optional)
-          if (typeof this.oncancel === 'function') {
-            log("Mock: firing oncancel");
-            // Uncomment below to test cancel
-            // this.oncancel();
-          }
-        }
-        completeMerchantValidation(session) { log("Mock: completeMerchantValidation called with:", session); }
-        completePayment(status) { log("Mock: completePayment called with:", status); }
-      };
+     
     } else {
       log("✅ Apple Pay is supported in this browser.");
     }
