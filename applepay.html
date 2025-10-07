@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Apple Pay Test</title>
+</head>
+<body>
+  <h2>Apple Pay Demo Page</h2>
+  <p>This page will check if Apple Pay is supported and let you try a simple test payment.</p>
+
+  <button id="applePayButton">Pay with Apple Pay</button>
+
+  <script>
+    // Check if Apple Pay is available in the browser
+    if (window.ApplePaySession) {
+      console.log("✅ Apple Pay is supported in this browser!");
+    } else {
+      console.log("❌ Apple Pay is NOT supported in this browser.");
+    }
+
+    // Handle the click event on the button
+    document.getElementById("applePayButton").addEventListener("click", beginApplePay);
+
+    function beginApplePay() {
+      // Basic payment details
+      const paymentRequest = {
+        countryCode: "US",
+        currencyCode: "USD",
+        total: {
+          label: "Demo Shop",
+          amount: "1.00"
+        },
+        supportedNetworks: ["visa", "masterCard", "amex"],
+        merchantCapabilities: ["supports3DS"]
+      };
+
+      // Create a new Apple Pay session
+      const session = new ApplePaySession(3, paymentRequest);
+      console.log("ApplePaySession created:", session);
+
+      // When Apple needs to validate the merchant
+      session.onvalidatemerchant = (event) => {
+        console.log("Merchant validation required:", event.validationURL);
+        // For demo, we'll just complete validation immediately
+        session.completeMerchantValidation({});
+      };
+
+      // When the user authorizes payment
+      session.onpaymentauthorized = (event) => {
+        console.log("Payment authorized:", event.payment);
+        session.completePayment(ApplePaySession.STATUS_SUCCESS);
+        console.log("✅ Payment completed successfully (test)");
+      };
+
+      // If the user cancels
+      session.oncancel = () => {
+        console.log("❌ Apple Pay was cancelled by the user");
+      };
+
+      // Start the Apple Pay flow
+      session.begin();
+      console.log("Apple Pay session started");
+    }
+  </script>
+</body>
+</html>
