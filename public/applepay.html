@@ -3,63 +3,83 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Apple Pay Test with Full Logging</title>
+  <title>Apple Pay Diagnostic Test</title>
 </head>
 <body>
-  <h2>Apple Pay Demo Page</h2>
-  <p>This page will check if Apple Pay is supported and log everything returned by its functions.</p>
+  <h2>Apple Pay Frontend Diagnostic</h2>
+  <p>Click the button below to start an Apple Pay session. This will log every step and show exactly where Safari stops.</p>
 
   <button id="applePayButton">Pay with Apple Pay</button>
-
-  <pre id="log" style="background:#eee; padding:10px; max-height:300px; overflow:auto;"></pre>
+  <pre id="log" style="background:#eee;padding:10px;max-height:400px;overflow:auto;"></pre>
 
   <script>
-    const logEl = document.getElementById('log');
+    const logEl = document.getElementById("log");
     function log(...args) {
       console.log(...args);
-      logEl.textContent += args.map(a => (typeof a === 'object' ? JSON.stringify(a, null, 2) : a)).join(' ') + '\n';
+      logEl.textContent += args.map(a =>
+        typeof a === "object" ? JSON.stringify(a, null, 2) : a
+      ).join(" ") + "\n";
     }
 
-    // Mock ApplePaySession if not available
+    // Detect support
     if (!window.ApplePaySession) {
-      log("❌ Apple Pay not available. Using mock session for testing.");
-     
+      log("❌ Apple Pay not supported in this browser.");
     } else {
       log("✅ Apple Pay is supported in this browser.");
+      log("ApplePaySession.version:", ApplePaySession.supportedVersion);
+      log("Can make payments:", ApplePaySession.canMakePayments());
     }
 
     document.getElementById("applePayButton").addEventListener("click", beginApplePay);
 
     function beginApplePay() {
-      const paymentRequest = {
-        countryCode: "US",
-        currencyCode: "USD",
-        total: { label: "Demo Shop", amount: "1.00" },
-        supportedNetworks: ["visa", "masterCard", "amex"],
-        merchantCapabilities: ["supports3DS"]
-      };
+      try {
+        const paymentRequest = {
+          countryCode: "US",
+          currencyCode: "USD",
+          total: { label: "Diagnostic Demo", amount: "1.00" },
+          supportedNetworks: ["visa", "masterCard", "amex"],
+          merchantCapabilities: ["supports3DS"]
+        };
 
-      const session = new ApplePaySession(3, paymentRequest);
-      log("ApplePaySession created:", session);
+        const session = new ApplePaySession(3, paymentRequest);
+        log("🟡 ApplePaySession created successfully.");
 
-      session.onvalidatemerchant = (event) => {
-        log("onvalidatemerchant triggered with event:", event);
-        session.completeMerchantValidation({ mock: "merchant-session" });
-      };
+        session.onvalidatemerchant = async (event) => {
+          log("🔵 onvalidatemerchant triggered.");
+          log("Validation URL:", event.validationURL);
 
-      session.onpaymentauthorized = (event) => {
-        log("onpaymentauthorized triggered with event:", event);
-        const status = ApplePaySession.STATUS_SUCCESS || "STATUS_SUCCESS";
-        session.completePayment(status);
-        log("Payment completed with status:", status);
-      };
+          try {
+            // Trying to fetch directly from Apple (this will fail in frontend)
+            const response = await fetch(event.validationURL);
+            const data = await response.text();
+            log("🔴 Apple responded (unexpected):", data);
+          } catch (err) {
+            log("❌ Merchant validation failed (expected in frontend):", err);
+          }
 
-      session.oncancel = () => {
-        log("oncancel triggered");
-      };
+          // Attempt fake completion
+          try {
+            session.completeMerchantValidation({ fake: true });
+            log("⚠️ Called completeMerchantValidation with fake data.");
+          } catch (e) {
+            log("❌ completeMerchantValidation threw error:", e);
+          }
+        };
 
-      session.begin();
-      log("Apple Pay session started");
+        session.onpaymentauthorized = (event) => {
+          log("✅ onpaymentauthorized triggered:", event);
+          session.completePayment(ApplePaySession.STATUS_SUCCESS);
+        };
+
+        session.oncancel = () => log("🟠 oncancel triggered (user or system cancel).");
+
+        session.begin();
+        log("🚀 session.begin() called.");
+
+      } catch (error) {
+        log("💥 Exception during Apple Pay setup:", error);
+      }
     }
   </script>
 </body>
